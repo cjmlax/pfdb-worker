@@ -128,6 +128,18 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_user_weekly_completions_sub ON user_weekly_completions(sub);
 
+  -- Color Wheel presets saved from the site (see wheelPresets.ts). habitats is
+  -- JSON: up to three lists of "Base_Color_ID:Sec_Color_ID" codes.
+  CREATE TABLE IF NOT EXISTS user_wheel_presets (
+    id         TEXT PRIMARY KEY,
+    sub        TEXT NOT NULL REFERENCES users(sub) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    habitats   TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_user_wheel_presets_name ON user_wheel_presets(sub, lower(name));
+
   CREATE TABLE IF NOT EXISTS alerts (
     id         TEXT PRIMARY KEY,
     message    TEXT NOT NULL,

@@ -15,6 +15,10 @@ import {
   setDisplaySource, setShowCredit, publicDisplayName,
   markWeeklyCompleted, clearWeeklyCompleted, completedWeeklySetIds,
 } from '../users';
+import {
+  MAX_NAME, MAX_PRESETS, cleanName, cleanHabitats, listWheelPresets, createWheelPreset, overwriteWheelPreset,
+  deleteWheelPreset, type SaveResult,
+} from '../wheelPresets';
 import { listActiveAlerts } from '../alerts';
 import { getHandler, listHandlers } from '../handlers/registry';
 import { notify } from '../notify';
@@ -225,6 +229,60 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       await upsertUser(sub, username);
       await clearWeeklyCompleted(sub, req.params.id);
       return completedWeeklySetIds(sub);
+    },
+  );
+
+  // The signed-in user's saved Colour Wheel presets. Each write returns the
+  // full list, sorted by name.
+  app.get('/api/me/wheel-presets', { preHandler: requireUser }, async (req) => {
+    const { sub, username } = req.user!;
+    await upsertUser(sub, username);
+    return listWheelPresets(sub);
+  });
+
+  const presetError = (result: SaveResult) => ({
+    ok:        null,
+    limit:     `You can save up to ${MAX_PRESETS} presets. Overwrite or delete one first.`,
+    duplicate: 'You already have a preset with that name.',
+    missing:   'That preset no longer exists.',
+  })[result];
+
+  app.post<{ Body: { name?: unknown; habitats?: unknown } }>(
+    '/api/me/wheel-presets',
+    { preHandler: requireUser },
+    async (req, reply) => {
+      const { sub, username } = req.user!;
+      const name = cleanName(req.body?.name);
+      const habitats = cleanHabitats(req.body?.habitats);
+      if (!name) return reply.code(400).send({ error: `Name the preset (up to ${MAX_NAME} characters).` });
+      if (!habitats) return reply.code(400).send({ error: 'That wheel can\'t be saved.' });
+      await upsertUser(sub, username);
+      const result = await createWheelPreset(sub, name, habitats);
+      if (result !== 'ok') return reply.code(409).send({ error: presetError(result) });
+      return listWheelPresets(sub);
+    },
+  );
+
+  app.put<{ Params: { id: string }; Body: { habitats?: unknown } }>(
+    '/api/me/wheel-presets/:id',
+    { preHandler: requireUser },
+    async (req, reply) => {
+      const { sub } = req.user!;
+      const habitats = cleanHabitats(req.body?.habitats);
+      if (!habitats) return reply.code(400).send({ error: 'That wheel can\'t be saved.' });
+      const result = await overwriteWheelPreset(sub, req.params.id, habitats);
+      if (result !== 'ok') return reply.code(404).send({ error: presetError(result) });
+      return listWheelPresets(sub);
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/me/wheel-presets/:id',
+    { preHandler: requireUser },
+    async (req) => {
+      const { sub } = req.user!;
+      await deleteWheelPreset(sub, req.params.id);
+      return listWheelPresets(sub);
     },
   );
 
