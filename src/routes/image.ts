@@ -18,6 +18,8 @@ import { authHeader, resolveTableId } from '../teable';
 // query Teable the same way per table, or the field key won't match.
 // A field can hold several attachments (e.g. a Frog Pairs record keeps one
 // screenshot per mutation); ?i=N picks one by position, defaulting to the first.
+// ?name=<filename> picks one by exact file name instead (e.g. a breed's sprite
+// layers), so reordering the files in Teable can't swap them; it wins over ?i.
 const TABLE_CONFIG: Record<string, { name: string; fieldKeyType: 'dbFieldName' | 'name' }> = {
   breeds: { name: 'Breeds',               fieldKeyType: 'dbFieldName' },
   pairs:  { name: 'Frog Pairs',           fieldKeyType: 'name' },
@@ -30,7 +32,7 @@ interface AttachmentEntry {
 }
 
 export async function registerImageRoutes(app: FastifyInstance) {
-  app.get<{ Params: { table: string; recordId: string; field: string }; Querystring: { i?: string } }>(
+  app.get<{ Params: { table: string; recordId: string; field: string }; Querystring: { i?: string; name?: string } }>(
     '/api/image/:table/:recordId/:field',
     { config: { rateLimit: { max: 600, timeWindow: '1 minute' } } },
     async (req, reply) => {
@@ -40,6 +42,10 @@ export async function registerImageRoutes(app: FastifyInstance) {
       const index = req.query.i === undefined ? 0 : Number(req.query.i);
       if (!Number.isInteger(index) || index < 0 || index > 50) {
         return reply.code(400).send({ error: 'invalid attachment index' });
+      }
+      const name = req.query.name;
+      if (name !== undefined && (name.length === 0 || name.length > 200)) {
+        return reply.code(400).send({ error: 'invalid attachment name' });
       }
 
       let tableId: string;
@@ -66,7 +72,8 @@ export async function registerImageRoutes(app: FastifyInstance) {
 
       const record = (await recordRes.json()) as { fields?: Record<string, unknown> };
       const fieldVal = record.fields?.[field];
-      const entry = (Array.isArray(fieldVal) ? fieldVal[index] : undefined) as AttachmentEntry | undefined;
+      const entries = (Array.isArray(fieldVal) ? fieldVal : []) as AttachmentEntry[];
+      const entry = name !== undefined ? entries.find(e => e?.name === name) : entries[index];
       if (!entry?.presignedUrl) return reply.code(404).send({ error: 'no attachment on this field' });
 
       let imgRes: Response;
