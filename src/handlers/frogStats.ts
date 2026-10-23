@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { SubmissionHandler } from '../types';
 import { pendingPayloadValues } from '../db';
 import { resolveFieldId, resolveTableId, teableGetRecordById, teableUpdateRecordById } from '../teable';
+import { noteFrogValue } from '../tasks/frogStatsCache';
+import { noteDailyFrogUpdated } from '../tasks/dailyFrog';
 
 // Community-submitted Value / Speed / Stamina for a frog that's missing them.
 // Only fills gaps: corrections to existing stats aren't accepted (yet), so a
@@ -77,6 +79,9 @@ export const frogStatsHandler: SubmissionHandler<FrogStatsPayload> = {
     const p = frogStatsSchema.parse(raw);
     const { tableId, fields } = await planUpdate(p);
     await teableUpdateRecordById(tableId, p.frogId, fields);
+    // The home page's highest Value and Frog of the Day update right away.
+    noteFrogValue(p.value);
+    noteDailyFrogUpdated(p.frogId);
     return p.frogId;
   },
 };

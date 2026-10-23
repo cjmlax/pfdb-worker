@@ -17,6 +17,8 @@ import { registerModPairRoutes } from './routes/modPairs';
 import { registerZitadelActionRoutes } from './routes/zitadelActions';
 import { registerVersionPoller } from './tasks/versionPoller';
 import { registerWeeklySetsPoller } from './tasks/weeklySetsPoller';
+import { registerFrogStatsCache } from './tasks/frogStatsCache';
+import { registerDailyFrog } from './tasks/dailyFrog';
 
 async function main() {
   const app = Fastify({
@@ -52,6 +54,8 @@ async function main() {
   );
   registerVersionPoller(app.log);
   registerWeeklySetsPoller(app.log);
+  registerFrogStatsCache(app.log);
+  registerDailyFrog(app.log);
 }
 
 main().catch((err) => {

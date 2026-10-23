@@ -104,6 +104,11 @@ export const config = {
     pollCron: opt('WEEKLY_SETS_POLL_CRON', '2 14 * * 1'), // Mondays at 2:02 PM ET
   },
 
+  frogStats: {
+    // Home page frog count + highest value, cached in memory and recomputed on this schedule.
+    refreshCron: opt('FROG_STATS_REFRESH_CRON', '0 5 * * *'), // daily at 5 AM
+  },
+
   notify: {
     webhookUrls: opt('WEBHOOK_URL', '').split(',').map((s) => s.trim()).filter(Boolean),
     adminUrl: opt('ADMIN_URL', opt('SITE_URL', 'https://pfdatabase.com')).replace(/\/$/, ''),

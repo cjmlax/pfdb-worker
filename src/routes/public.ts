@@ -21,7 +21,9 @@ import {
 } from '../wheelPresets';
 import { listActiveAlerts } from '../alerts';
 import { getHandler, listHandlers } from '../handlers/registry';
-import { notify } from '../notify';
+import { errorMessage, notify } from '../notify';
+import { getFrogStats } from '../tasks/frogStatsCache';
+import { getDailyFrog, isServableDate, todayUtc } from '../tasks/dailyFrog';
 import { broadcastSse } from '../sse';
 import { storeScreenshot } from '../imageProcess';
 
@@ -459,6 +461,33 @@ export async function registerPublicRoutes(app: FastifyInstance) {
   // Frog ids that already have a stats submission awaiting review, so the
   // website can hide them from the missing-stats list.
   app.get('/api/frog-stats/pending', async () => pendingPayloadValues('frogStats', 'frogId'));
+
+  // Home page frog count + highest value, served from the worker's daily cache.
+  app.get('/api/stats/frogs', async (req, reply) => {
+    try {
+      const stats = await getFrogStats();
+      reply.header('Cache-Control', 'public, max-age=300');
+      return stats;
+    } catch (err) {
+      req.log.warn({ err: errorMessage(err) }, 'frog stats: unavailable');
+      return reply.code(502).send({ error: 'Frog stats are unavailable right now.' });
+    }
+  });
+
+  // PFDB Frog of the Day for ?date=YYYY-MM-DD (yesterday–tomorrow in UTC, so any
+  // time zone's current day); anything else — or no date — gets today in UTC.
+  app.get<{ Querystring: { date?: string } }>('/api/stats/daily-frog', async (req, reply) => {
+    const asked = req.query.date ?? '';
+    const date = isServableDate(asked) ? asked : todayUtc();
+    try {
+      const frog = await getDailyFrog(date);
+      reply.header('Cache-Control', 'public, max-age=300');
+      return frog;
+    } catch (err) {
+      req.log.warn({ err: errorMessage(err), date }, 'daily frog: unavailable');
+      return reply.code(502).send({ error: 'The frog of the day is unavailable right now.' });
+    }
+  });
 
   // Mutation record ids that already have a completion awaiting review.
   app.get('/api/mutation-completions/pending', async () => pendingPayloadValues('mutationCompletion', 'mutationId'));
